@@ -1,0 +1,467 @@
+<html>
+<body>
+
+<div id="divUi">
+
+	<h3>Anagram Finder</h3>
+
+	<p>
+		Load a word list file, then some text to find anagrams for,
+		then click the "Find Anagrams" button to find anagrams
+		for the specified passage.
+	</p>
+
+	<div>
+		<label>Word List:</label>
+		<br />
+		<input type="file" onchange="inputFileWordList_Changed(this)"></input>
+		<br />
+		<textarea id="textareaWordList" cols="20" rows="10">
+be
+better
+chubbiest
+could
+dotterel
+syzygy
+this
+		</textarea>
+	</div>
+
+	<div>
+		<label>Text to Find Anagrams For:</label>
+		<br />
+		<input id="inputTextToFindAnagramsFor" max="40" value="This Could Be Better"></input>
+	</div>
+
+	<button onclick="buttonFindAnagrams_Clicked()">Find Anagrams</button>
+
+	<div>
+		<label>Anagrams Found:</label>
+		<br />
+		<textarea id="textareaAnagramsFound" cols="40" rows="10"></textarea>
+	</div>
+
+</div>
+
+<script type="text/javascript">
+
+// UI event handlers.
+
+function buttonFindAnagrams_Clicked()
+{
+	var d = document;
+
+	var textareaWordList =
+		d.getElementById("textareaWordList");
+	var wordListAsString = textareaWordList.value;
+	var newline = "\n";
+	var wordsKnown =
+		wordListAsString.split
+		(
+			newline
+		).map
+		(
+			x => x.trim()
+		).filter
+		(
+			x => x.length > 0
+		);
+
+	var inputTextToFindAnagramsFor = 
+		d.getElementById("inputTextToFindAnagramsFor");
+	var textToFindAnagramsFor = inputTextToFindAnagramsFor.value;
+
+	var anagramFinder = new AnagramFinder(wordsKnown);
+
+	var anagramsFound =
+		anagramFinder.anagramsFindInCharactersOfText
+		(
+			textToFindAnagramsFor
+		);
+
+	var anagramsFoundAsText = anagramsFound.join(newline);
+	var textareaAnagramsFound = d.getElementById("textareaAnagramsFound");
+	textareaAnagramsFound.value = anagramsFoundAsText;
+}
+
+function inputFileWordList_Changed(inputFileWordList)
+{}
+
+// Classes.
+
+class AnagramFinder
+{
+	constructor(wordsKnown)
+	{
+		this.wordsKnown = wordsKnown;
+
+		this.wordsKnownByAlphabetization = new Map
+		(
+			wordsKnown.map(x => [this.alphabetizeString(x), x])
+		);
+	}
+
+	static default()
+	{
+		return new AnagramFinder([]);
+	}
+
+	alphabetizeString(stringToAlphabetize)
+	{
+		var stringToAlphabetizeAsChars =
+			stringToAlphabetize.toLowerCase().split("").filter(x => x != " ");
+
+		var stringAlphabetizedAsChars =
+			stringToAlphabetizeAsChars.sort();
+
+		var stringAlphabetized = stringAlphabetizedAsChars.join("");
+
+		return stringAlphabetized;
+	}
+
+	anagramsFindInCharactersOfText(textToFindAnagramsFor)
+	{
+		textToFindAnagramsFor =
+			textToFindAnagramsFor.toLowerCase().split("").filter(x => x != " ").join("");
+
+		var anagramsAsWordArrays = this.anagramsFindInCharactersOfText_Recursive
+		(
+			textToFindAnagramsFor
+		);
+
+		var anagramsAsStrings = anagramsAsWordArrays.map(x => x.join(" "));
+
+		return anagramsAsStrings;
+	}
+
+	anagramsFindInCharactersOfText_Recursive(textToFindAnagramsFor)
+	{
+		var anagramsSoFar = [];
+
+		if (textToFindAnagramsFor.length == 0)
+		{
+			return anagramsSoFar;
+		}
+
+		for (var i = 0; i < this.wordsKnown.length; i++)
+		{
+			var word = this.wordsKnown[i];
+
+			if (word == textToFindAnagramsFor)
+			{
+				continue;
+			}
+
+			var anagramsStartingWithWordAsWordGroups = [];
+
+			var charsInTextMinusWord =
+				this.findCharsInStringNotInOtherString
+				(
+					textToFindAnagramsFor, word
+				);
+
+			var wasWordFound =
+				(word.length + charsInTextMinusWord.length == textToFindAnagramsFor.length);
+
+			if (wasWordFound)
+			{
+				var textRemaining =
+					charsInTextMinusWord.join("");
+
+				if (textRemaining.length == 0)
+				{
+					var anagramWords = [ word ];
+					anagramsStartingWithWordAsWordGroups.push(anagramWords);
+				}
+				else
+				{
+					var anagramsFoundInTextRemaining =
+						this.anagramsFindInCharactersOfText_Recursive(textRemaining);
+
+					if (anagramsFoundInTextRemaining.length > 0)
+					{
+						for (var a = 0; a < anagramsFoundInTextRemaining.length; a++)
+						{
+							var anagramWords = anagramsFoundInTextRemaining[a];
+							anagramWords.push(word);
+							anagramWords.sort();
+							anagramsStartingWithWordAsWordGroups.push(anagramWords);
+						}
+					}
+				}
+			}
+
+			for (var a = 0; a < anagramsStartingWithWordAsWordGroups.length; a++)
+			{
+				var anagramWords = anagramsStartingWithWordAsWordGroups[a];
+
+				var anagramAsString = anagramWords.join("");
+
+				var isAnagramAlreadyKnown =
+					anagramsSoFar.some(x => x.join("") == anagramAsString);
+
+				if (isAnagramAlreadyKnown == false)
+				{
+					anagramsSoFar.push(anagramWords);
+				}
+			}
+		}
+
+		return anagramsSoFar;
+	}
+
+	findCharsInStringNotInOtherString
+	(
+		stringThatMayIncludeChars,
+		stringWithCharsToInclude
+	)
+	{
+		var areAllCharsIncludedSoFar = true;
+
+		// todo - Splitting here is inefficient.
+		var charsThatMayIncludeOthers =
+			stringThatMayIncludeChars.split("");
+
+		var charsThatMustBeIncluded = 
+			stringWithCharsToInclude.split("");
+
+		for (var i = 0; i < charsThatMustBeIncluded.length; i++)
+		{
+			var charThatMustBeIncluded = charsThatMustBeIncluded[i];
+
+			var indexOfCharInSuperstring =
+				charsThatMayIncludeOthers.indexOf(charThatMustBeIncluded);
+			var doesSuperstringIncludeChar =
+				(indexOfCharInSuperstring >= 0);
+			if (doesSuperstringIncludeChar)
+			{
+				charsThatMayIncludeOthers.splice
+				(
+					indexOfCharInSuperstring, 1
+				);
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		var charsRemaining = charsThatMayIncludeOthers;
+
+		return charsRemaining;
+	}
+}
+
+// Tests.
+
+class Assert
+{
+	static areEqual(expected, actual)
+	{
+		var areNotEqual = (expected != actual);
+		if (areNotEqual)
+		{
+			throw new Error("Expected: " + expected + ", but was: " + actual + ".");
+		}
+	}
+
+	static isArrayEmpty(arrayToCheck)
+	{
+		if (arrayToCheck.length > 0)
+		{
+			throw new Error("Expected: empty, but was: not empty.");
+		}
+	}
+
+	static isArrayNotEmpty(arrayToCheck)
+	{
+		if (arrayToCheck.length == 0)
+		{
+			throw new Error("Expected: not empty, but was: empty.");
+		}
+	}
+
+	static isFalse(booleanToCheck)
+	{
+		if (booleanToCheck != false)
+		{
+			throw new Error("Expected: false, but was: " + booleanToCheck + ".");
+		}
+	}
+
+	static isTrue(booleanToCheck)
+	{
+		if (booleanToCheck != true)
+		{
+			throw new Error("Expected: true, but was: " + booleanToCheck + ".");
+		}
+	}
+}
+
+class Test
+{
+	constructor(name, run)
+	{
+		this.name = name;
+		this._run = run;
+	}
+
+	run()
+	{
+		try 
+		{
+			this._run();
+		}
+		catch (ex)
+		{
+			var message =
+				"Test '" + this.name
+				+"' failed:" + ex.toString();
+			console.log(message);
+			throw ex;
+		}
+	}
+}
+
+class TestFixture
+{
+	constructor(name, tests)
+	{
+		this.name = name;
+		this.tests = tests;
+	}
+
+	run()
+	{
+		this.tests.forEach(x => x.run());
+	}
+}
+
+class TestSuite
+{
+	constructor(name, testFixtures)
+	{
+		this.name = name;
+		this.testFixtures = testFixtures;
+	}
+
+	run()
+	{
+		this.testFixtures.forEach(x => x.run() );
+	}
+}
+
+function alphabetizeStringTest()
+{
+	var anagramFinder = AnagramFinder.default();
+
+	var stringToAlphabetize =
+		"The quick fox jumps over the lazy brown dog."
+	var stringAlphabetized =
+		anagramFinder.alphabetizeString(stringToAlphabetize);
+
+	var stringAlphabetizedExpected =
+		".abcdeeefghhijklmnoooopqrrsttuuvwxyz";
+	Assert.areEqual(stringAlphabetizedExpected, stringAlphabetized);
+}
+
+function anagramsFindTest_AFewWordsKnown()
+{
+	var wordsKnownAsString = "this,could,be,better,chubbiest,dotterel,syzygy";
+	var wordsKnown = wordsKnownAsString.split(",");
+	var anagramFinder = new AnagramFinder(wordsKnown);
+	var textToFindAnagramsFor = "This Could Be Better";
+	var anagramsFound =
+		anagramFinder.anagramsFindInCharactersOfText(textToFindAnagramsFor);
+	Assert.isArrayNotEmpty(anagramsFound);
+	Assert.areEqual(2, anagramsFound.length);
+	Assert.areEqual("be better could this", anagramsFound[0]);
+	Assert.areEqual("chubbiest dotterel", anagramsFound[1]);
+}
+
+function anagramsFindTest_NoWordsKnown()
+{
+	var wordsKnown = [];
+	var anagramFinder = new AnagramFinder(wordsKnown);
+	var textToFindAnagramsFor = "todo";
+	var anagramsFound =
+		anagramFinder.anagramsFindInCharactersOfText(textToFindAnagramsFor);
+	Assert.isArrayEmpty(anagramsFound);
+}
+
+function findCharsInStringNotInOtherStringTest()
+{
+	var anagramFinder = AnagramFinder.default();
+
+	var stringPairsWithResults =
+	[
+		[ "abc", "abc", true ],
+		[ "abc", "bcd", false ],
+		[ "abc", "def", false ]
+	];
+
+	for (var i = 0; i < stringPairsWithResults.length; i++)
+	{
+		var stringPairWithResult = stringPairsWithResults[i];
+
+		var stringThatMayContainCharsFromOther = stringPairWithResult[0];
+		var stringWithCharsThatMayBeContainedInOther = stringPairWithResult[1];
+		var resultExpected = stringPairWithResult[2];
+
+		var charsInStringNotInOther =
+			anagramFinder.findCharsInStringNotInOtherString
+			(
+				stringThatMayContainCharsFromOther,
+				stringWithCharsThatMayBeContainedInOther
+			);
+
+		var charsLeftOverCountExpected =
+			stringThatMayContainCharsFromOther.length
+			- stringWithCharsThatMayBeContainedInOther.length;
+
+		var doesStringContainAllCharsFromOther =
+			(charsInStringNotInOther.length == charsLeftOverCountExpected);
+
+		Assert.areEqual(resultExpected, doesStringContainAllCharsFromOther);
+	}
+}
+
+var testSuiteAll = new TestSuite
+(
+	"TestSuiteAll",
+	[
+		new TestFixture
+		(
+			"TestFixture",
+			[
+				new Test
+				(
+					"AlphabetizeString",
+					alphabetizeStringTest
+				),
+				new Test
+				(
+					"AnagramsFind_AFewWordsKnown",
+					anagramsFindTest_AFewWordsKnown
+				),
+				new Test
+				(
+					"AnagramsFind_NoWordsKnown",
+					anagramsFindTest_NoWordsKnown
+				),
+				new Test
+				(
+					"FindCharsInStringNotInOtherString",
+					findCharsInStringNotInOtherStringTest
+				)
+			]
+		)
+	]
+);
+
+testSuiteAll.run();
+
+</script>
+
+</body>
+</html>
